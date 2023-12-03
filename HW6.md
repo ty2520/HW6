@@ -18,6 +18,12 @@ library(tidyverse)
     ## ✖ dplyr::lag()    masks stats::lag()
     ## ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
 
+``` r
+library(purrr)
+library(ggridges)
+library(modelr)
+```
+
 # Problem 2
 
 ``` r
@@ -101,13 +107,13 @@ bootstrap_results =
   )
 ```
 
-    ## Warning: There were 3329 warnings in `mutate()`.
+    ## Warning: There were 3335 warnings in `mutate()`.
     ## The first warning was:
     ## ℹ In argument: `beta_log_product = map_dbl(lm_fit, ~log(coef(.)["tmin"] *
     ##   coef(.)["prcp"]))`.
     ## Caused by warning in `log()`:
     ## ! NaNs produced
-    ## ℹ Run `dplyr::last_dplyr_warnings()` to see the 3328 remaining warnings.
+    ## ℹ Run `dplyr::last_dplyr_warnings()` to see the 3334 remaining warnings.
 
 ``` r
 ggplot(bootstrap_results, aes(x = r_squared)) +
@@ -124,7 +130,7 @@ ggplot(bootstrap_results, aes(x = beta_log_product)) +
   labs(title = "Distribution of log(beta1 * beta2) Estimates")
 ```
 
-    ## Warning: Removed 3329 rows containing non-finite values (`stat_bin()`).
+    ## Warning: Removed 3335 rows containing non-finite values (`stat_bin()`).
 
 ![](HW6_files/figure-gfm/unnamed-chunk-9-1.png)<!-- --> log(beta1 \*
 beta2) estimations are left-skewed
@@ -140,14 +146,14 @@ conf_interval_r_squared
 ```
 
     ##      2.5%     97.5% 
-    ## 0.8881548 0.9402629
+    ## 0.8881933 0.9407424
 
 ``` r
 conf_interval_beta_log_product
 ```
 
     ##      2.5%     97.5% 
-    ## -9.072261 -4.579759
+    ## -9.032400 -4.586329
 
 Problem 3
 
@@ -217,6 +223,7 @@ print(missing_values)
 
 ``` r
 bw_df <- bw_df |>
+  janitor::clean_names()|>
   mutate(
     babysex = as.factor(babysex),
     frace = as.factor(frace),
@@ -224,6 +231,12 @@ bw_df <- bw_df |>
     mrace = as.factor(mrace)
   )
 ```
+
+This dataset contains 4342 observations of 20 variables with no missing
+values. I’m trying to investigate the impact of several key factors on
+the weight of a newborn, as measured in grams (bwt). I chose to start
+with some factors might affect birthweight, including gestational age,
+mother’s age, weight gain, and smoking during pregnancy.
 
 ``` r
 model1 <- lm(bwt ~ gaweeks + momage + wtgain + smoken, data = bw_df)
@@ -257,9 +270,9 @@ library(ggplot2)
 library(modelr)
 library(dplyr)
 
-bw_df <- bw_df %>%
-  add_predictions(model1) %>%
-  add_residuals(model1)
+bw_df <- bw_df |>
+  modelr::add_predictions(model1,var = "pred") |>
+  modelr::add_residuals(model1,var = "resid")
 
 ggplot(bw_df, aes(x = pred, y = resid)) +
   geom_point() +
@@ -279,4 +292,73 @@ model_length_gestational <- lm(bwt ~ blength + gaweeks, data = bw_df)
 
 ``` r
 model_interactions <- lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex + bhead * blength * babysex, data = bw_df)
+summary(model_interactions)
 ```
+
+    ## 
+    ## Call:
+    ## lm(formula = bwt ~ bhead + blength + babysex + bhead * blength + 
+    ##     bhead * babysex + blength * babysex + bhead * blength * babysex, 
+    ##     data = bw_df)
+    ## 
+    ## Residuals:
+    ##      Min       1Q   Median       3Q      Max 
+    ## -1132.99  -190.42   -10.33   178.63  2617.96 
+    ## 
+    ## Coefficients:
+    ##                          Estimate Std. Error t value Pr(>|t|)    
+    ## (Intercept)            -7176.8170  1264.8397  -5.674 1.49e-08 ***
+    ## bhead                    181.7956    38.0542   4.777 1.84e-06 ***
+    ## blength                  102.1269    26.2118   3.896 9.92e-05 ***
+    ## babysex2                6374.8684  1677.7669   3.800 0.000147 ***
+    ## bhead:blength             -0.5536     0.7802  -0.710 0.478012    
+    ## bhead:babysex2          -198.3932    51.0917  -3.883 0.000105 ***
+    ## blength:babysex2        -123.7729    35.1185  -3.524 0.000429 ***
+    ## bhead:blength:babysex2     3.8781     1.0566   3.670 0.000245 ***
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+    ## 
+    ## Residual standard error: 287.7 on 4334 degrees of freedom
+    ## Multiple R-squared:  0.6849, Adjusted R-squared:  0.6844 
+    ## F-statistic:  1346 on 7 and 4334 DF,  p-value: < 2.2e-16
+
+``` r
+cv_df=
+  crossv_mc(bw_df,100)|>
+   mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
+
+cv_df=
+  cv_df|>
+  mutate(
+    model1 = map(train,~lm(bwt ~ gaweeks + momage + wtgain + smoken, data = .x)),
+    model_length_gestational  = map(train, ~lm(bwt ~ gaweeks + blength, data = .x)),
+    model_interactions  = map(train, ~lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex + bhead * blength * babysex, data = .x)))|>
+  mutate(
+    rmse_model1 = map2_dbl(model1, test, ~rmse(model = .x,data = .y)),
+    rmse_model_length_gestational = map2_dbl(model_length_gestational, test, ~rmse(model = .x,data = .y)),
+    rmse_model_interactions = map2_dbl(model_interactions, test, ~rmse(model = .x,data = .y)))
+```
+
+``` r
+cv_df |> 
+  select(starts_with("rmse")) |> 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") |> 
+  mutate(model = fct_inorder(model)) |> 
+  ggplot(aes(x = model, y = rmse,fill = model)) + 
+  geom_violin()+
+  scale_fill_brewer(palette = "Pastel2") +
+  labs(x = "Model", y = "RMSE", title = "Comparison of Model RMSEs") +
+  theme_minimal()+
+  theme(legend.position = "none")
+```
+
+![](HW6_files/figure-gfm/unnamed-chunk-20-1.png)<!-- --> The model using
+head circumference, length, sex, and all interactions (including the
+three-way interaction) between these has the lowest RMSE which indicates
+best model performance

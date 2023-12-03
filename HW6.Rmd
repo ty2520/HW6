@@ -11,6 +11,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(tidyverse)
+library(purrr)
+library(ggridges)
+library(modelr)
 ```
 # Problem 2
 
@@ -104,6 +107,7 @@ print(missing_values)
 ```
 ```{r}
 bw_df <- bw_df |>
+  janitor::clean_names()|>
   mutate(
     babysex = as.factor(babysex),
     frace = as.factor(frace),
@@ -112,7 +116,7 @@ bw_df <- bw_df |>
   )
 
 ```
-
+This dataset contains 4342 observations of 20 variables with no missing values. I'm trying to investigate the impact of several key factors on the weight of a newborn, as measured in grams (bwt). I chose to start with some factors might affect birthweight, including gestational age, mother's age, weight gain, and smoking during pregnancy.
 ```{r}
 model1 <- lm(bwt ~ gaweeks + momage + wtgain + smoken, data = bw_df)
 summary(model1)
@@ -121,9 +125,9 @@ library(ggplot2)
 library(modelr)
 library(dplyr)
 
-bw_df <- bw_df %>%
-  add_predictions(model1) %>%
-  add_residuals(model1)
+bw_df <- bw_df |>
+  modelr::add_predictions(model1,var = "pred") |>
+  modelr::add_residuals(model1,var = "resid")
 
 ggplot(bw_df, aes(x = pred, y = resid)) +
   geom_point() +
@@ -137,11 +141,43 @@ model_length_gestational <- lm(bwt ~ blength + gaweeks, data = bw_df)
 
 ```{r}
 model_interactions <- lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex + bhead * blength * babysex, data = bw_df)
+summary(model_interactions)
 
 ```
 
 ```{r}
+cv_df=
+  crossv_mc(bw_df,100)|>
+   mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
 
+cv_df=
+  cv_df|>
+  mutate(
+    model1 = map(train,~lm(bwt ~ gaweeks + momage + wtgain + smoken, data = .x)),
+    model_length_gestational  = map(train, ~lm(bwt ~ gaweeks + blength, data = .x)),
+    model_interactions  = map(train, ~lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex + bhead * blength * babysex, data = .x)))|>
+  mutate(
+    rmse_model1 = map2_dbl(model1, test, ~rmse(model = .x,data = .y)),
+    rmse_model_length_gestational = map2_dbl(model_length_gestational, test, ~rmse(model = .x,data = .y)),
+    rmse_model_interactions = map2_dbl(model_interactions, test, ~rmse(model = .x,data = .y)))
 ```
 
-
+```{r}
+cv_df |> 
+  select(starts_with("rmse")) |> 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") |> 
+  mutate(model = fct_inorder(model)) |> 
+  ggplot(aes(x = model, y = rmse,fill = model)) + 
+  geom_violin()+
+  scale_fill_brewer(palette = "Pastel2") +
+  labs(x = "Model", y = "RMSE", title = "Comparison of Model RMSEs") +
+  theme_minimal()+
+  theme(legend.position = "none")
+```
+The model using head circumference, length, sex, and all interactions (including the three-way interaction) between these has the lowest RMSE which indicates best model performance
