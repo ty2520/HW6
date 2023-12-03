@@ -1,0 +1,98 @@
+---
+title: "HW6"
+author: "Tongxi Yu"
+date: "2023-12-03"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+# Problem 2
+
+```{r}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2022-01-01",
+    date_max = "2022-12-31") |>
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) |>
+  select(name, id, everything())
+```
+```{r}
+lm(tmax ~ tmin + prcp, data = weather_df) |> 
+  broom::tidy() |> 
+  knitr::kable(digits = 3)
+```
+```{r}
+boot_sample = function(df) {
+  sample_frac(df, replace = TRUE)
+}
+```
+
+
+
+```{r}
+boot_straps = 
+  tibble(strap_number = 1:5000) |> 
+  mutate(
+    strap_sample = map(strap_number, \(i) boot_sample(df = weather_df))
+  )
+
+boot_straps
+```
+```{r}
+fit_lm = function(data) {
+  lm(tmax ~ tmin + prcp, data = data)
+}
+```
+
+Fit a linear regression model for each bootstrap sample
+
+```{r}
+bootstrap_results =
+  boot_straps %>%
+  mutate(
+    lm_fit = map(strap_sample, fit_lm),
+    r_squared = map_dbl(lm_fit, ~ broom::glance(.)$r.squared),
+    beta_log_product = map_dbl(lm_fit, ~ log(coef(.)["tmin"] * coef(.)["prcp"]))
+  )
+```
+
+
+```{r}
+ggplot(bootstrap_results, aes(x = r_squared)) +
+  geom_histogram(binwidth = 0.01, fill = "blue", color = "white") +
+  labs(title = "Distribution of r^2 Estimates")
+```
+The r^2 estimations are close to normal distribution.
+```{r}
+ggplot(bootstrap_results, aes(x = beta_log_product)) +
+  geom_histogram(binwidth = 0.1, fill = "green", color = "white") +
+  labs(title = "Distribution of log(beta1 * beta2) Estimates")
+```
+log(beta1 * beta2) estimations are left-skewed
+```{r}
+conf_interval_r_squared = quantile(bootstrap_results$r_squared, c(0.025, 0.975))
+
+conf_interval_beta_log_product = quantile(bootstrap_results$beta_log_product, c(0.025, 0.975), na.rm = TRUE)
+```
+```{r}
+conf_interval_r_squared
+conf_interval_beta_log_product
+```
+
+Problem 3
+
+```{r}
+
+```
+
