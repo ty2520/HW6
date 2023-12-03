@@ -93,6 +93,55 @@ conf_interval_beta_log_product
 Problem 3
 
 ```{r}
+bw_df <- read_csv("Data/birthweight.csv")
+```
+```{r}
+summary(bw_df)
+```
+```{r}
+missing_values <- colSums(is.na(bw_df))
+print(missing_values)
+```
+```{r}
+bw_df <- bw_df |>
+  mutate(
+    babysex = as.factor(babysex),
+    frace = as.factor(frace),
+    malform = as.factor(malform),
+    mrace = as.factor(mrace)
+  )
 
 ```
+
+```{r}
+model1 <- lm(bwt ~ gaweeks + momage + wtgain + smoken, data = bw_df)
+summary(model1)
+
+library(ggplot2)
+library(modelr)
+library(dplyr)
+
+bw_df <- bw_df %>%
+  add_predictions(model1) %>%
+  add_residuals(model1)
+
+ggplot(bw_df, aes(x = pred, y = resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals")
+```
+In summary, the model indicates that gestational age, mother's age, weight gain, and smoking during pregnancy are significant predictors of birth weight, and the overall model is statistically significant. The model explains about 22.82% of the variability in birth weight.
+```{r}
+model_length_gestational <- lm(bwt ~ blength + gaweeks, data = bw_df) 
+```
+
+```{r}
+model_interactions <- lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex + bhead * blength * babysex, data = bw_df)
+
+```
+
+```{r}
+
+```
+
 

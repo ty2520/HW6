@@ -101,13 +101,13 @@ bootstrap_results =
   )
 ```
 
-    ## Warning: There were 3398 warnings in `mutate()`.
+    ## Warning: There were 3329 warnings in `mutate()`.
     ## The first warning was:
     ## ℹ In argument: `beta_log_product = map_dbl(lm_fit, ~log(coef(.)["tmin"] *
     ##   coef(.)["prcp"]))`.
     ## Caused by warning in `log()`:
     ## ! NaNs produced
-    ## ℹ Run `dplyr::last_dplyr_warnings()` to see the 3397 remaining warnings.
+    ## ℹ Run `dplyr::last_dplyr_warnings()` to see the 3328 remaining warnings.
 
 ``` r
 ggplot(bootstrap_results, aes(x = r_squared)) +
@@ -124,7 +124,7 @@ ggplot(bootstrap_results, aes(x = beta_log_product)) +
   labs(title = "Distribution of log(beta1 * beta2) Estimates")
 ```
 
-    ## Warning: Removed 3398 rows containing non-finite values (`stat_bin()`).
+    ## Warning: Removed 3329 rows containing non-finite values (`stat_bin()`).
 
 ![](HW6_files/figure-gfm/unnamed-chunk-9-1.png)<!-- --> log(beta1 \*
 beta2) estimations are left-skewed
@@ -140,13 +140,143 @@ conf_interval_r_squared
 ```
 
     ##      2.5%     97.5% 
-    ## 0.8895426 0.9403267
+    ## 0.8881548 0.9402629
 
 ``` r
 conf_interval_beta_log_product
 ```
 
     ##      2.5%     97.5% 
-    ## -8.893421 -4.590991
+    ## -9.072261 -4.579759
 
 Problem 3
+
+``` r
+bw_df <- read_csv("Data/birthweight.csv")
+```
+
+    ## Rows: 4342 Columns: 20
+    ## ── Column specification ────────────────────────────────────────────────────────
+    ## Delimiter: ","
+    ## dbl (20): babysex, bhead, blength, bwt, delwt, fincome, frace, gaweeks, malf...
+    ## 
+    ## ℹ Use `spec()` to retrieve the full column specification for this data.
+    ## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
+
+``` r
+summary(bw_df)
+```
+
+    ##     babysex          bhead          blength           bwt           delwt      
+    ##  Min.   :1.000   Min.   :21.00   Min.   :20.00   Min.   : 595   Min.   : 86.0  
+    ##  1st Qu.:1.000   1st Qu.:33.00   1st Qu.:48.00   1st Qu.:2807   1st Qu.:131.0  
+    ##  Median :1.000   Median :34.00   Median :50.00   Median :3132   Median :143.0  
+    ##  Mean   :1.486   Mean   :33.65   Mean   :49.75   Mean   :3114   Mean   :145.6  
+    ##  3rd Qu.:2.000   3rd Qu.:35.00   3rd Qu.:51.00   3rd Qu.:3459   3rd Qu.:157.0  
+    ##  Max.   :2.000   Max.   :41.00   Max.   :63.00   Max.   :4791   Max.   :334.0  
+    ##     fincome          frace          gaweeks         malform        
+    ##  Min.   : 0.00   Min.   :1.000   Min.   :17.70   Min.   :0.000000  
+    ##  1st Qu.:25.00   1st Qu.:1.000   1st Qu.:38.30   1st Qu.:0.000000  
+    ##  Median :35.00   Median :2.000   Median :39.90   Median :0.000000  
+    ##  Mean   :44.11   Mean   :1.655   Mean   :39.43   Mean   :0.003455  
+    ##  3rd Qu.:65.00   3rd Qu.:2.000   3rd Qu.:41.10   3rd Qu.:0.000000  
+    ##  Max.   :96.00   Max.   :8.000   Max.   :51.30   Max.   :1.000000  
+    ##     menarche        mheight          momage         mrace      
+    ##  Min.   : 0.00   Min.   :48.00   Min.   :12.0   Min.   :1.000  
+    ##  1st Qu.:12.00   1st Qu.:62.00   1st Qu.:18.0   1st Qu.:1.000  
+    ##  Median :12.00   Median :63.00   Median :20.0   Median :2.000  
+    ##  Mean   :12.51   Mean   :63.49   Mean   :20.3   Mean   :1.627  
+    ##  3rd Qu.:13.00   3rd Qu.:65.00   3rd Qu.:22.0   3rd Qu.:2.000  
+    ##  Max.   :19.00   Max.   :77.00   Max.   :44.0   Max.   :4.000  
+    ##      parity            pnumlbw     pnumsga      ppbmi            ppwt      
+    ##  Min.   :0.000000   Min.   :0   Min.   :0   Min.   :13.07   Min.   : 70.0  
+    ##  1st Qu.:0.000000   1st Qu.:0   1st Qu.:0   1st Qu.:19.53   1st Qu.:110.0  
+    ##  Median :0.000000   Median :0   Median :0   Median :21.03   Median :120.0  
+    ##  Mean   :0.002303   Mean   :0   Mean   :0   Mean   :21.57   Mean   :123.5  
+    ##  3rd Qu.:0.000000   3rd Qu.:0   3rd Qu.:0   3rd Qu.:22.91   3rd Qu.:134.0  
+    ##  Max.   :6.000000   Max.   :0   Max.   :0   Max.   :46.10   Max.   :287.0  
+    ##      smoken           wtgain      
+    ##  Min.   : 0.000   Min.   :-46.00  
+    ##  1st Qu.: 0.000   1st Qu.: 15.00  
+    ##  Median : 0.000   Median : 22.00  
+    ##  Mean   : 4.145   Mean   : 22.08  
+    ##  3rd Qu.: 5.000   3rd Qu.: 28.00  
+    ##  Max.   :60.000   Max.   : 89.00
+
+``` r
+missing_values <- colSums(is.na(bw_df))
+print(missing_values)
+```
+
+    ##  babysex    bhead  blength      bwt    delwt  fincome    frace  gaweeks 
+    ##        0        0        0        0        0        0        0        0 
+    ##  malform menarche  mheight   momage    mrace   parity  pnumlbw  pnumsga 
+    ##        0        0        0        0        0        0        0        0 
+    ##    ppbmi     ppwt   smoken   wtgain 
+    ##        0        0        0        0
+
+``` r
+bw_df <- bw_df |>
+  mutate(
+    babysex = as.factor(babysex),
+    frace = as.factor(frace),
+    malform = as.factor(malform),
+    mrace = as.factor(mrace)
+  )
+```
+
+``` r
+model1 <- lm(bwt ~ gaweeks + momage + wtgain + smoken, data = bw_df)
+summary(model1)
+```
+
+    ## 
+    ## Call:
+    ## lm(formula = bwt ~ gaweeks + momage + wtgain + smoken, data = bw_df)
+    ## 
+    ## Residuals:
+    ##      Min       1Q   Median       3Q      Max 
+    ## -1800.39  -283.85     2.99   289.84  1516.67 
+    ## 
+    ## Coefficients:
+    ##             Estimate Std. Error t value Pr(>|t|)    
+    ## (Intercept) 231.1248    89.6821   2.577  0.00999 ** 
+    ## gaweeks      60.3773     2.2091  27.332  < 2e-16 ***
+    ## momage       15.7720     1.7887   8.818  < 2e-16 ***
+    ## wtgain        9.6180     0.6352  15.142  < 2e-16 ***
+    ## smoken       -7.1676     0.9258  -7.742 1.21e-14 ***
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+    ## 
+    ## Residual standard error: 450.2 on 4337 degrees of freedom
+    ## Multiple R-squared:  0.2282, Adjusted R-squared:  0.2274 
+    ## F-statistic: 320.5 on 4 and 4337 DF,  p-value: < 2.2e-16
+
+``` r
+library(ggplot2)
+library(modelr)
+library(dplyr)
+
+bw_df <- bw_df %>%
+  add_predictions(model1) %>%
+  add_residuals(model1)
+
+ggplot(bw_df, aes(x = pred, y = resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals")
+```
+
+![](HW6_files/figure-gfm/unnamed-chunk-16-1.png)<!-- --> In summary, the
+model indicates that gestational age, mother’s age, weight gain, and
+smoking during pregnancy are significant predictors of birth weight, and
+the overall model is statistically significant. The model explains about
+22.82% of the variability in birth weight.
+
+``` r
+model_length_gestational <- lm(bwt ~ blength + gaweeks, data = bw_df) 
+```
+
+``` r
+model_interactions <- lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex + bhead * blength * babysex, data = bw_df)
+```
